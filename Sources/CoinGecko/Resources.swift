@@ -15,7 +15,8 @@ public enum Endpoint: String {
     
     case coinsList = "/coins/list"
     case coinsMarketChart = "/coins/%@/market_chart"
-    case coin = "/coins/%@"
+    case coin = "/coins/%@" 
+    case ohlc = "/coins/%@/ohlc"
 }
 
 public enum Resources {}
@@ -80,5 +81,24 @@ extension Resources {
         let params = [URLQueryItem(name: "vs_currency", value: vs),
                       URLQueryItem(name: "days", value: "\(days)")]
         return Resource(.coinsMarketChart, method: .GET, pathParam: currencyId, params: params, completion: callback)
+    }
+    
+    // Coin Gecko API returns candles of diffrent duration based on `days` parameter
+    // ```
+    //    1 - 2 days: 30 minutes
+    //    3 - 30 days: 4 hours
+    //    31 and before: 4 days
+    // ```
+    public static func candles<CandleList>(currencyId: String, vs: String, days: Int, callback: @escaping Callback<CandleList>) -> Resource<CandleList> {
+        let params = [URLQueryItem(name: "vs_currency", value: vs),
+                      URLQueryItem(name: "days", value: "\(days)")]
+        
+        let parse: (Data) -> CandleList = { data in
+            let decoder = JSONDecoder()
+            let arrayData = try? decoder.decode([[Double]].self, from: data)
+            return (arrayData ?? []).map { Candle(arrayData: $0) } as! CandleList
+        }
+                
+        return Resource(.ohlc, method: .GET, pathParam: currencyId, params: params, parse: parse, completion: callback)
     }
 }
